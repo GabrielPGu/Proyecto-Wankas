@@ -16,7 +16,7 @@ export default function HomePage() {
         <div className="container px-4 md:px-6">
           <div className="grid gap-6 lg:grid-cols-[1fr_400px] lg:gap-12 xl:grid-cols-[1fr_600px]">
             <Image
-              src="https://rujqfdpeyoekhzesiorf.supabase.co/storage/v1/object/public/product-images/logo.jpeg"
+              src="https://wryrhzvhjtjqjellypeo.supabase.co/storage/v1/object/public/product-images/logo.jpeg"
               alt={translations.home.promoImageAlt}
               data-ai-hint="logo brand"
               width={600}
@@ -92,7 +92,7 @@ function FeatureCard({ icon, title, description }: FeatureCardProps) {
   return (
     <div className="group flex flex-col items-center text-center p-6 rounded-xl bg-card shadow-lg hover:shadow-2xl transition-shadow duration-300 ease-in-out transform hover:-translate-y-1">
       <div className="mb-4 rounded-full bg-accent/10 p-3 group-hover:bg-accent transition-colors">
-        {React.cloneElement(icon as React.ReactElement, { className: "h-8 w-8 text-accent group-hover:text-accent-foreground transition-colors"})}
+        {React.cloneElement(icon as React.ReactElement, { className: "h-8 w-8 text-accent group-hover:text-accent-foreground transition-colors" })}
       </div>
       <h3 className="font-headline text-xl font-bold text-foreground mb-2">{title}</h3>
       <p className="text-sm text-muted-foreground font-body">{description}</p>
