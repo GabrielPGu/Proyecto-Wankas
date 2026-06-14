@@ -25,13 +25,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       const { data: profileData, error: profileError } = await supabase
         .from('profiles')
-        .select('id, name, email, phone_number') 
+        .select('id, name, email, phone_number, role') 
         .eq('id', authUserId)
         .single();
 
       if (profileError && profileError.code !== 'PGRST116') { 
         console.error("Error fetching user profile from Supabase:", profileError.message);
-        return { id: authUserId, email: authUserEmail, name: authUserName, phone_number: null };
+        return { id: authUserId, email: authUserEmail, name: authUserName, phone_number: null, role: null };
       }
       
       if (profileData) {
@@ -40,9 +40,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           email: profileData.email || authUserEmail,
           name: profileData.name || authUserName,
           phone_number: profileData.phone_number,
+          role: profileData.role,
         };
       } else {
-        return { id: authUserId, email: authUserEmail, name: authUserName, phone_number: null };
+        return { id: authUserId, email: authUserEmail, name: authUserName, phone_number: null, role: null };
       }
 
     } catch (error) {
@@ -51,46 +52,100 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  const buildUser = async (authUser: { id: string; email?: string | null; user_metadata?: any }): Promise<User> => {
+    const profileDetails = await fetchUserProfile(authUser.id, authUser.email, authUser.user_metadata?.name);
+    return {
+      id: authUser.id,
+      email: authUser.email || null,
+      name: profileDetails.name || authUser.user_metadata?.name || null,
+      phone_number: profileDetails.phone_number || null,
+      role: profileDetails.role || null,
+    };
+  };
+
   useEffect(() => {
+    if (!supabase) {
+      setIsLoading(false);
+      return;
+    }
+
     const initializeAuth = async () => {
       setIsLoading(true);
       try {
-        const storedUserStr = localStorage.getItem('wankas-user');
-        if (storedUserStr) {
-          const authInfoFromStorage: User = JSON.parse(storedUserStr);
-          const profileDetails = await fetchUserProfile(authInfoFromStorage.id, authInfoFromStorage.email, authInfoFromStorage.name);
-          setUser({
-            ...authInfoFromStorage,
-            ...profileDetails,
-          });
-        } else {
-          setUser(null);
+        // 1. Try native Supabase localStorage session first
+        const { data: { session } } = await supabase.auth.getSession();
+
+        if (session?.user) {
+          const completeUser = await buildUser(session.user);
+          setUser(completeUser);
+          localStorage.setItem('wankas-user', JSON.stringify(completeUser));
+          setIsLoading(false);
+          return;
         }
+
+        // 2. No local session — try shared Redis/file SSO session from Admin
+        try {
+          const res = await fetch('/api/auth/session');
+          const data = await res.json();
+          if (data.session?.access_token) {
+            const { data: setData, error: setError } = await supabase.auth.setSession({
+              access_token: data.session.access_token,
+              refresh_token: data.session.refresh_token,
+            });
+            if (!setError && setData.user) {
+              const completeUser = await buildUser(setData.user);
+              setUser(completeUser);
+              localStorage.setItem('wankas-user', JSON.stringify(completeUser));
+              setIsLoading(false);
+              return;
+            }
+          }
+        } catch (ssoError) {
+          // SSO fetch failed — non-critical, continue as logged out
+          console.warn('SSO session fetch failed:', ssoError);
+        }
+
+        // 3. No session found anywhere
+        setUser(null);
+        localStorage.removeItem('wankas-user');
       } catch (error) {
-        console.error("Failed to load user from localStorage or fetch profile", error);
+        console.error("Failed to initialize auth", error);
         localStorage.removeItem('wankas-user'); 
         setUser(null);
       }
       setIsLoading(false);
     };
+
     initializeAuth();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (session?.user) {
+        const completeUser = await buildUser(session.user);
+        setUser(completeUser);
+        localStorage.setItem('wankas-user', JSON.stringify(completeUser));
+      } else {
+        setUser(null);
+        localStorage.removeItem('wankas-user');
+      }
+    });
+
+    return () => {
+      if (subscription) subscription.unsubscribe();
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const login = async (authData: User) => { 
-    setIsLoading(true);
-    const profileDetails = await fetchUserProfile(authData.id, authData.email, authData.name);
-    const completeUser: User = {
-      ...authData, 
-      name: profileDetails.name || authData.name, 
-      email: profileDetails.email || authData.email, 
-      phone_number: profileDetails.phone_number,
-    };
-    localStorage.setItem('wankas-user', JSON.stringify(completeUser));
-    setUser(completeUser); 
-    setIsLoading(false);
+    setUser(authData);
+    localStorage.setItem('wankas-user', JSON.stringify(authData));
   };
 
-  const logout = () => {
+  const logout = async () => {
+    // Fire-and-forget: clear shared SSO session
+    fetch('/api/auth/session', { method: 'DELETE' }).catch(console.error);
+    if (supabase) {
+      await supabase.auth.signOut();
+    }
     setUser(null);
     localStorage.removeItem('wankas-user');
     if (typeof window !== 'undefined') {

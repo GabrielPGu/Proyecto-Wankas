@@ -28,18 +28,61 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const supabase = createClient();
 
   useEffect(() => {
-    setLoading(true);
-    try {
-      const storedUser = localStorage.getItem(USER_STORAGE_KEY);
-      if (storedUser) {
-        setUser(JSON.parse(storedUser));
+    const initializeAuth = async () => {
+      setLoading(true);
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user) {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', session.user.id)
+            .single();
+          if (profile && (profile.role === 'admin' || profile.role === 'worker')) {
+            setUser(profile as UserProfile);
+            localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(profile));
+          } else {
+            setUser(null);
+            localStorage.removeItem(USER_STORAGE_KEY);
+            await supabase.auth.signOut();
+          }
+        } else {
+          setUser(null);
+          localStorage.removeItem(USER_STORAGE_KEY);
+        }
+      } catch (error) {
+        console.error("Failed to parse user session", error);
+        localStorage.removeItem(USER_STORAGE_KEY);
+        setUser(null);
       }
-    } catch (error) {
-      console.error("Failed to parse user from localStorage", error);
-      localStorage.removeItem(USER_STORAGE_KEY);
-    }
-    setLoading(false);
-  }, []);
+      setLoading(false);
+    };
+    initializeAuth();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (session?.user) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', session.user.id)
+          .single();
+        if (profile && (profile.role === 'admin' || profile.role === 'worker')) {
+          setUser(profile as UserProfile);
+          localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(profile));
+        } else {
+          setUser(null);
+          localStorage.removeItem(USER_STORAGE_KEY);
+        }
+      } else {
+        setUser(null);
+        localStorage.removeItem(USER_STORAGE_KEY);
+      }
+    });
+
+    return () => {
+      if (subscription) subscription.unsubscribe();
+    };
+  }, [supabase]);
 
   const updateUser = useCallback((updatedData: Partial<UserProfile>) => {
     setUser(currentUser => {
@@ -51,38 +94,63 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   }, []);
 
   const login = useCallback(async (email: string, password: string): Promise<{ error: AuthError | null }> => {
-    const { data: profile, error: dbError } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('email', email)
-      .single();
+    const { data, error: authError } = await supabase.auth.signInWithPassword({ email, password });
 
-    if (dbError || !profile) {
-      return { error: { message: "Credenciales inválidas." } };
-    }
-    
-    if (profile.password_hash !== password) {
-       return { error: { message: "Credenciales inválidas." } };
-    }
-    
-    const userProfile = profile as UserProfile;
-    setUser(userProfile);
-    localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(userProfile));
-    
-    if (userProfile.role === 'worker') {
-      router.push('/seleccionar-sede');
-    } else {
-      router.push('/dashboard');
+    if (authError) {
+      return { error: { message: authError.message === 'Invalid login credentials' ? "Credenciales inválidas." : authError.message } };
     }
 
-    return { error: null };
+    if (data.user) {
+      const { data: profile, error: dbError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', data.user.id)
+        .single();
+
+      if (dbError || !profile) {
+        await supabase.auth.signOut();
+        return { error: { message: "No se encontró el perfil de usuario." } };
+      }
+
+      if (profile.role !== 'admin' && profile.role !== 'worker') {
+        await supabase.auth.signOut();
+        return { error: { message: "Privilegios insuficientes para acceder al administrador." } };
+      }
+
+      const userProfile = profile as UserProfile;
+      setUser(userProfile);
+      localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(userProfile));
+
+      // Fire-and-forget: save session to shared Redis/file store for SSO
+      const { data: { session: activeSession } } = await supabase.auth.getSession();
+      if (activeSession) {
+        fetch('/api/auth/session', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ session: activeSession }),
+        }).catch(console.error);
+      }
+
+      if (userProfile.role === 'worker') {
+        router.replace('/seleccionar-sede');
+      } else {
+        router.replace('/dashboard');
+      }
+
+      return { error: null };
+    }
+
+    return { error: { message: "Error de autenticación desconocido." } };
   }, [supabase, router]);
 
-  const logout = useCallback(() => {
+  const logout = useCallback(async () => {
+    // Fire-and-forget: clear shared Redis/file session
+    fetch('/api/auth/session', { method: 'DELETE' }).catch(console.error);
+    await supabase.auth.signOut();
     setUser(null);
     localStorage.removeItem(USER_STORAGE_KEY);
-    router.push('/');
-  }, [router]);
+    router.replace('/');
+  }, [supabase, router]);
   
   return (
     <AuthContext.Provider value={{ user, login, logout, loading, updateUser }}>

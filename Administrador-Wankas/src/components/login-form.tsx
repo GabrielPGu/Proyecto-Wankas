@@ -1,18 +1,42 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/use-auth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
+import { Loader2 } from 'lucide-react';
 
 export default function LoginForm() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const { login } = useAuth();
+  const { login, user, loading } = useAuth();
   const { toast } = useToast();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!loading && user) {
+      if (user.role === 'worker') {
+        router.replace('/seleccionar-sede');
+      } else {
+        router.replace('/dashboard');
+      }
+    }
+  }, [user, loading, router]);
+
+  if (loading || user) {
+    return (
+      <Card className="w-full max-w-md shadow-lg flex items-center justify-center p-8 min-h-[250px]">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <p className="text-muted-foreground text-sm">Cargando sesión...</p>
+        </div>
+      </Card>
+    );
+  }
 
   const validateEmail = (email: string) => {
     const emailRegex = /^[^\s@]+@(gmail\.com|outlook\.com|hotmail\.com|yahoo\.com|wanka\.com)$/i;
@@ -71,10 +95,21 @@ export default function LoginForm() {
             />
           </div>
         </CardContent>
-        <CardFooter>
+        <CardFooter className="flex flex-col gap-4">
           <Button type="submit" className="w-full" style={{ backgroundColor: 'hsl(var(--accent))', color: 'hsl(var(--accent-foreground))' }}>
             Ingresar
           </Button>
+          <div className="border-t border-border/60 w-full my-1" />
+          <p className="text-sm text-muted-foreground text-center">
+            ¿Buscas comprar nuestros productos?{' '}
+            <a 
+              href={process.env.NEXT_PUBLIC_ECOMMERCE_URL || 'http://localhost:9000'}
+              className="hover:underline font-medium block mt-1"
+              style={{ color: 'hsl(var(--accent))' }}
+            >
+              Ir a la Tienda Online →
+            </a>
+          </p>
         </CardFooter>
       </form>
     </Card>

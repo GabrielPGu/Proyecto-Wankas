@@ -4,6 +4,7 @@
 import * as React from "react"
 import { useAuth } from "@/hooks/use-auth"
 import type { UserProfile } from "@/types"
+import { createUserAction, updateUserAction, deleteUserAction } from "@/actions/usuarios"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -122,16 +123,15 @@ export default function UsuariosPage() {
         return
     }
 
-    const { error } = await supabase.from('profiles').insert({
+    const response = await createUserAction({
       name,
       email,
-      password_hash: password, 
       role,
-    })
+      password,
+    });
 
-    if (error) {
-      toast({ variant: "destructive", title: "Error", description: "No se pudo crear el usuario."})
-      console.error(error)
+    if (!response.success) {
+      toast({ variant: "destructive", title: "Error", description: response.error || "No se pudo crear el usuario."})
     } else {
       toast({ title: "Éxito", description: "Usuario creado correctamente."})
       setIsAddDialogOpen(false)
@@ -144,15 +144,14 @@ export default function UsuariosPage() {
     if (!userToEdit) return
 
     const { name, email, role } = formData;
-    const { error } = await supabase.from('profiles').update({
+    const response = await updateUserAction(userToEdit.id, {
       name,
       email,
-      role
-    }).eq('id', userToEdit.id)
+      role,
+    });
 
-    if (error) {
-      toast({ variant: "destructive", title: "Error", description: "No se pudo actualizar el usuario."})
-      console.error(error)
+    if (!response.success) {
+      toast({ variant: "destructive", title: "Error", description: response.error || "No se pudo actualizar el usuario."})
     } else {
       toast({ title: "Éxito", description: "Usuario actualizado correctamente."})
       setIsEditDialogOpen(false)
@@ -164,11 +163,10 @@ export default function UsuariosPage() {
   const handleDeleteUser = async () => {
     if (!userToDeleteId) return
 
-    const { error } = await supabase.from('profiles').delete().eq('id', userToDeleteId)
+    const response = await deleteUserAction(userToDeleteId);
     
-    if (error) {
-      toast({ variant: "destructive", title: "Error", description: "No se pudo eliminar el usuario."})
-      console.error(error)
+    if (!response.success) {
+      toast({ variant: "destructive", title: "Error", description: response.error || "No se pudo eliminar el usuario."})
     } else {
       toast({ title: "Éxito", description: "Usuario eliminado correctamente."})
       fetchUsers()

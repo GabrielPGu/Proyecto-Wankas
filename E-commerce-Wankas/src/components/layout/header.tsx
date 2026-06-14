@@ -9,7 +9,7 @@ import { useAuth } from '@/context/auth-context';
 import { useCart } from '@/context/cart-context';
 import { useLocale } from '@/context/locale-context';
 import type { NavTranslationKey } from '@/types';
-import { ShoppingCart, Menu, LogOut, Languages } from 'lucide-react';
+import { ShoppingCart, Menu, LogOut, Languages, ShieldAlert } from 'lucide-react';
 import { Sheet, SheetContent, SheetTrigger, SheetClose } from '@/components/ui/sheet';
 import React from 'react';
 import {
@@ -83,6 +83,15 @@ export function Header() {
         <nav className="hidden md:flex items-center gap-4">
           {renderNavLinks(mainNav)}
           {renderNavLinks(userNav)}
+          {user && (user.role === 'admin' || user.role === 'worker') && (
+            <a
+              href={process.env.NEXT_PUBLIC_ADMIN_URL || 'http://localhost:9002'}
+              className="flex items-center gap-2 text-sm font-medium transition-colors hover:text-primary text-foreground/80"
+            >
+              <ShieldAlert className="h-4 w-4 text-primary" />
+              Panel Admin
+            </a>
+          )}
           {user && (
             <Button variant="ghost" size="sm" onClick={logout} className="text-foreground/80 hover:text-primary">
               <LogOut className="h-4 w-4 mr-2" /> {translations.nav.logout}
@@ -149,6 +158,17 @@ export function Header() {
                 </SheetClose>
                 {renderNavLinks(mainNav, true)}
                 {renderNavLinks(userNav, true)} 
+                {user && (user.role === 'admin' || user.role === 'worker') && (
+                  <SheetClose asChild>
+                    <a
+                      href={process.env.NEXT_PUBLIC_ADMIN_URL || 'http://localhost:9002'}
+                      className="flex items-center gap-2 text-sm font-medium transition-colors hover:text-primary text-foreground/80 justify-start py-2"
+                    >
+                      <ShieldAlert className="h-4 w-4 text-primary" />
+                      Panel Admin
+                    </a>
+                  </SheetClose>
+                )}
                 {user && (
                   <SheetClose asChild>
                     <Button variant="ghost" onClick={logout} className="w-full justify-start text-foreground/80 hover:text-primary">

@@ -49,6 +49,7 @@ export interface User {
   email?: string | null; 
   name?: string | null; 
   phone_number?: string | null; 
+  role?: string | null;
 }
 
 export interface IdentifiedItem {

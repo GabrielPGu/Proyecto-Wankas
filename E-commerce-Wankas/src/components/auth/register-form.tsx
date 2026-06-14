@@ -13,7 +13,7 @@ import Link from 'next/link';
 import { Loader } from '../ui/loader';
 import { UserPlus } from 'lucide-react';
 import { useLocale } from '@/context/locale-context';
-import { registerUser } from '@/actions/auth';
+import { supabase } from '@/lib/supabaseClient';
 
 export function RegisterForm() {
   const [name, setName] = useState('');
@@ -40,16 +40,34 @@ export function RegisterForm() {
     setIsLoading(true);
 
     try {
-        const result = await registerUser({ name, email, password });
-
-        if (result.error) {
+        if (!supabase) {
             toast({
-                title: translations.registerForm.dbErrorTitle,
-                description: result.error, // Use the user-friendly error from the server action
+                title: translations.common.error,
+                description: 'El servicio de base de datos no está disponible.',
                 variant: 'destructive',
             });
-        } else if (result.user) {
-            await login(result.user);
+            setIsLoading(false);
+            return;
+        }
+
+        const { data, error } = await supabase.auth.signUp({
+            email,
+            password,
+            options: {
+                data: {
+                    name,
+                    role: 'user',
+                }
+            }
+        });
+
+        if (error) {
+            toast({
+                title: translations.registerForm.dbErrorTitle,
+                description: error.message,
+                variant: 'destructive',
+            });
+        } else if (data.user) {
             toast({ title: translations.registerForm.registrationSuccessTitle, description: translations.registerForm.registrationSuccessDesc });
             router.push('/profile');
         } else {
@@ -132,6 +150,15 @@ export function RegisterForm() {
             {translations.registerForm.haveAccount}{' '}
             <Button variant="link" asChild className="p-0 h-auto text-primary">
               <Link href="/login">{translations.registerForm.loginHere}</Link>
+            </Button>
+          </p>
+          <div className="border-t border-border/60 w-full my-1" />
+          <p className="text-xs text-muted-foreground text-center">
+            ¿Eres parte del equipo Wanka's?{' '}
+            <Button variant="link" asChild className="p-0 h-auto text-primary font-medium text-xs">
+              <a href={process.env.NEXT_PUBLIC_ADMIN_URL || "http://localhost:9002"}>
+                Inicia sesión en el Portal del Staff →
+              </a>
             </Button>
           </p>
         </CardFooter>
