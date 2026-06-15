@@ -1,34 +1,32 @@
 import Redis from 'ioredis';
 import fs from 'fs';
 import path from 'path';
+import os from 'os';
 
-// Define the fallback file path in the workspace root
-const FALLBACK_FILE_PATH = path.resolve(process.cwd(), '../.session-store.json');
+// Define the fallback file path. In Vercel (or any read-only environment), we must use /tmp
+const isVercel = process.env.VERCEL === '1';
+const FALLBACK_FILE_PATH = isVercel 
+  ? path.join(os.tmpdir(), '.session-store.json')
+  : path.resolve(process.cwd(), '../.session-store.json');
 
 class SessionStore {
   private redis: Redis | null = null;
-  private isRedisConnected = false;
 
   constructor() {
     const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
     try {
       this.redis = new Redis(redisUrl, {
         maxRetriesPerRequest: 1,
-        connectTimeout: 2000, // 2 seconds timeout to fail fast
-        enableOfflineQueue: false, // Disable offline queueing to fail fast if offline
+        connectTimeout: 5000, // 5 seconds timeout to allow Upstash to connect
         retryStrategy: () => null, // Do not auto-retry on connection failure
       });
 
       this.redis.on('connect', () => {
-        this.isRedisConnected = true;
         console.log('Successfully connected to Redis.');
       });
 
       this.redis.on('error', (err) => {
-        if (this.isRedisConnected) {
-          console.warn('Redis error, switching to fallback storage:', err.message);
-        }
-        this.isRedisConnected = false;
+        console.warn('Redis error, switching to fallback storage:', err.message);
       });
     } catch (e) {
       console.warn('Failed to initialize Redis client, using fallback storage.');
@@ -56,11 +54,11 @@ class SessionStore {
   }
 
   async get(key: string): Promise<string | null> {
-    if (this.isRedisConnected && this.redis) {
+    if (this.redis && this.redis.status !== 'end') {
       try {
         return await this.redis.get(key);
       } catch (e) {
-        this.isRedisConnected = false;
+        console.warn('Redis get failed, falling back:', e);
       }
     }
 
@@ -79,7 +77,7 @@ class SessionStore {
   }
 
   async set(key: string, value: string, mode?: string, duration?: number): Promise<void> {
-    if (this.isRedisConnected && this.redis) {
+    if (this.redis && this.redis.status !== 'end') {
       try {
         if (mode === 'EX' && duration) {
           await this.redis.set(key, value, 'EX', duration);
@@ -88,7 +86,7 @@ class SessionStore {
         }
         return;
       } catch (e) {
-        this.isRedisConnected = false;
+        console.warn('Redis set failed, falling back:', e);
       }
     }
 
@@ -103,12 +101,12 @@ class SessionStore {
   }
 
   async del(key: string): Promise<void> {
-    if (this.isRedisConnected && this.redis) {
+    if (this.redis && this.redis.status !== 'end') {
       try {
         await this.redis.del(key);
         return;
       } catch (e) {
-        this.isRedisConnected = false;
+        console.warn('Redis del failed, falling back:', e);
       }
     }
 
