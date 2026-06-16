@@ -5,6 +5,8 @@ import * as React from "react"
 import { useAuth } from "@/hooks/use-auth"
 import type { Location } from "@/types"
 import { createClient } from "@/lib/supabase/client"
+import { adminCache } from "@/lib/adminCache"
+import { Loader } from "@/components/ui/loader"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import {
@@ -64,17 +66,28 @@ export default function UbicacionesPage() {
     address: ""
   })
 
-  const fetchLocations = React.useCallback(async () => {
-    setLoading(true)
-    const { data, error } = await supabase.from('locations').select('*').order('name_es', { ascending: true })
-    if (error) {
-      toast({ variant: "destructive", title: "Error", description: "No se pudieron cargar las ubicaciones."})
-      console.error(error)
-    } else {
-      setLocations(data)
+  const fetchLocations = React.useCallback(async (forceRefresh = false) => {
+    if (!forceRefresh) {
+      const cached = adminCache.get<Location[]>('ubicaciones')
+      if (cached) {
+        setLocations(cached)
+        setLoading(false)
+        return
+      }
     }
-    setLoading(false)
-  }, [supabase, toast])
+    setLoading(true)
+    try {
+      const res = await fetch('/api/admin/ubicaciones')
+      const data = await res.json()
+      adminCache.set('ubicaciones', data)
+      setLocations(data)
+    } catch (e) {
+      toast({ variant: "destructive", title: "Error", description: "No se pudieron cargar las ubicaciones."})
+      console.error(e)
+    } finally {
+      setLoading(false)
+    }
+  }, [toast])
 
   React.useEffect(() => {
     fetchLocations()
@@ -124,7 +137,8 @@ export default function UbicacionesPage() {
     } else {
       toast({ title: "Éxito", description: "Ubicación añadida correctamente."})
       setIsAddDialogOpen(false)
-      fetchLocations()
+      adminCache.invalidate('ubicaciones')
+      fetchLocations(true)
     }
   }
 
@@ -145,7 +159,8 @@ export default function UbicacionesPage() {
       toast({ title: "Éxito", description: "Ubicación actualizada correctamente."})
       setIsEditDialogOpen(false)
       setLocationToEdit(null)
-      fetchLocations()
+      adminCache.invalidate('ubicaciones')
+      fetchLocations(true)
     }
   }
 
@@ -159,7 +174,8 @@ export default function UbicacionesPage() {
       console.error(error)
     } else {
       toast({ title: "Éxito", description: "Ubicación eliminada correctamente."})
-      fetchLocations()
+      adminCache.invalidate('ubicaciones')
+      fetchLocations(true)
     }
     setIsDeleteDialogOpen(false)
     setLocationToDeleteId(null)
@@ -170,7 +186,11 @@ export default function UbicacionesPage() {
   }
   
   if (loading) {
-    return <p>Cargando ubicaciones...</p>
+    return (
+      <div className="flex items-center justify-center min-h-[calc(100vh-15rem)]">
+        <Loader text="Cargando ubicaciones..." size={48} />
+      </div>
+    )
   }
 
   return (

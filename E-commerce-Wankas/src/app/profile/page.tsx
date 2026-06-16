@@ -11,6 +11,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
 import { useLocale } from '@/context/locale-context';
+import { clientCache } from '@/lib/clientCache';
 import { getUserOrders, cancelOrder as cancelOrderService, type EnrichedOrder } from '@/services/orderService';
 import type { User } from '@/types';
 import { OrderHistoryCard } from '@/components/order-history-card';
@@ -45,11 +46,39 @@ export default function ProfilePage() {
 
   const fetchOrders = useCallback(async () => {
     if (user?.id) {
+      const cacheKey = `orders_${user.id}`;
+      const cached = clientCache.get<EnrichedOrder[]>(cacheKey);
+      if (cached) {
+        setOrders(cached);
+        setIsLoadingOrders(false);
+        return;
+      }
+
       setIsLoadingOrders(true);
       setErrorLoadingOrders(null);
       try {
-        const userOrders = await getUserOrders(user.id);
+        let userOrders;
+        const response = await fetch(`/api/orders?userId=${user.id}`);
+        
+        if (response.ok) {
+            userOrders = await response.json();
+        } else if (response.status === 404) {
+            // CACHE_MISS -> Fetch directly from client Supabase to ensure RLS passes
+            userOrders = await getUserOrders(user.id);
+            
+            // Save to cache on the server
+            fetch('/api/orders', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ userId: user.id, orders: userOrders })
+            }).catch(e => console.error("Failed to save orders to cache:", e));
+        } else {
+            throw new Error('Network response was not ok');
+        }
+
+        if (userOrders?.error) throw new Error(userOrders.error);
         setOrders(userOrders);
+        clientCache.set(cacheKey, userOrders);
       } catch (error: any) {
         console.error("Error fetching user orders:", error);
         setErrorLoadingOrders(error.message || translations.profilePage.errorLoadingOrders);
@@ -87,9 +116,11 @@ export default function ProfilePage() {
     try {
       await cancelOrderService(orderId, user.id);
       toast({ title: translations.profilePage.orderCancelledTitle, description: translations.profilePage.orderCancelledDesc });
-      setOrders(prevOrders => 
-        prevOrders.map(o => o.id === orderId ? { ...o, status: 'cancelled' } : o)
-      );
+      
+      const newOrders = orders.map(o => o.id === orderId ? { ...o, status: 'cancelled' } : o) as EnrichedOrder[];
+      setOrders(newOrders);
+      clientCache.set(`orders_${user.id}`, newOrders);
+      
       return true;
     } catch (error: any) {
       toast({ title: translations.common.error, description: error.message || translations.profilePage.orderCancellationFailedDesc, variant: 'destructive' });

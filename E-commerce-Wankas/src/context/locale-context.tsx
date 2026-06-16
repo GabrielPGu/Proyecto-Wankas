@@ -52,13 +52,11 @@ export const LocaleProvider = ({ children }: { children: ReactNode }) => {
   }, [locale, translations, isMounted]);
 
 
-  if (!isMounted) {
-    return null; 
-  }
-
   return (
     <LocaleContext.Provider value={{ locale, translations, setLocale }}>
-      {children}
+      <div style={{ display: 'contents', visibility: isMounted ? 'visible' : 'hidden' }}>
+        {children}
+      </div>
     </LocaleContext.Provider>
   );
 };

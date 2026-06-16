@@ -25,7 +25,7 @@ const generateRecipeImageFlow = ai.defineFlow(
   },
   async (input) => {
     const { media } = await ai.generate({
-      model: 'googleai/gemini-2.5-flash-image-preview',
+      model: 'googleai/imagen-3.0-generate-001',
       prompt: `Genera una imagen fotorrealista de alta calidad de un plato de "${input.recipeName}". La imagen debe ser apetitosa, bien iluminada y visualmente atractiva, adecuada para un blog de cocina.`,
       config: {
         responseModalities: ['IMAGE'],

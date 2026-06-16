@@ -1,7 +1,6 @@
-'use server';
-
 import { supabase } from '@/lib/supabaseClient';
 import type { Order, OrderItem, User, CartItem } from '@/types';
+import { clientCache } from '@/lib/clientCache';
 
 export interface EnrichedOrderItem extends OrderItem {
   productName?: string;
@@ -93,7 +92,15 @@ export async function placeOrderWithStockUpdate(
     await supabase.from('orders').delete().eq('id', newOrder.id);
     throw new Error('No se pudieron guardar los detalles de la orden. La orden ha sido cancelada. Por favor, reintente.');
   }
-  
+
+  // Invalidate cache for this user
+  try {
+    clientCache.invalidate(`orders_${orderData.user_id}`);
+    await fetch(`/api/orders?userId=${orderData.user_id}`, { method: 'DELETE' });
+  } catch (e) {
+    console.error('Failed to invalidate orders cache:', e);
+  }
+
   return newOrder;
 }
 
@@ -205,6 +212,14 @@ export async function cancelOrder(orderId: string, userId: string): Promise<bool
 
   if (updateError) {
     throw new Error("Se restauró el stock pero no se pudo actualizar el estado de la orden. Contacta a soporte.");
+  }
+
+  // Invalidate cache for this user
+  try {
+    clientCache.invalidate(`orders_${userId}`);
+    await fetch(`/api/orders?userId=${userId}`, { method: 'DELETE' });
+  } catch (e) {
+    console.error('Failed to invalidate orders cache:', e);
   }
 
   return true;

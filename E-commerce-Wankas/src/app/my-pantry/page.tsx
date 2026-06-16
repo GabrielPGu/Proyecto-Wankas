@@ -372,7 +372,7 @@ export default function MyPantryPage() {
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-4">
                     {uploadedImageUris.map((uri, index) => (
                         <div key={index} className="relative aspect-square rounded-lg overflow-hidden shadow-md">
-                            <Image src={uri} alt={`${translations.myPantryPage.imageUploader.imagePreviewAlt} ${index + 1}`} layout="fill" objectFit="cover" />
+                            <Image src={uri} alt={`${translations.myPantryPage.imageUploader.imagePreviewAlt} ${index + 1}`} fill style={{ objectFit: 'cover' }} />
                         </div>
                     ))}
                 </div>
@@ -469,7 +469,7 @@ export default function MyPantryPage() {
               {generatedRecipeImageUri && !isGeneratingRecipeImage && (
                 <div className="mb-6 text-center">
                   <div className="relative w-full max-w-md h-64 mx-auto rounded-lg overflow-hidden shadow-md">
-                    <Image src={generatedRecipeImageUri} alt={translations.myPantryPage.recipeImageFor.replace('{recipeName}', selectedRecipe.recipeName)} layout="fill" objectFit="cover" />
+                    <Image src={generatedRecipeImageUri} alt={translations.myPantryPage.recipeImageFor.replace('{recipeName}', selectedRecipe.recipeName)} fill style={{ objectFit: 'cover' }} />
                   </div>
                 </div>
               )}

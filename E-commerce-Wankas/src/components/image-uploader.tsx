@@ -340,7 +340,7 @@ export function ImageUploader({ onImageUpload, isProcessing }: ImageUploaderProp
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
             {previews.map((src, index) => (
               <div key={index} className="relative group aspect-square">
-                <Image src={src} alt={`${translations.myPantryPage.imageUploader.imagePreviewAlt} ${index + 1}`} layout="fill" objectFit="cover" className="rounded-md shadow-md" unoptimized={src.startsWith('blob:')} />
+                <Image src={src} alt={`${translations.myPantryPage.imageUploader.imagePreviewAlt} ${index + 1}`} fill style={{ objectFit: 'cover' }} className="rounded-md shadow-md" unoptimized={src.startsWith('blob:')} />
                 {!isProcessing && (
                   <Button
                     variant="destructive"
