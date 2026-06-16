@@ -23,6 +23,12 @@ const nextConfig: NextConfig = {
         port: '',
         pathname: '/**',
       },
+      {
+        protocol: 'https',
+        hostname: 'image.pollinations.ai',
+        port: '',
+        pathname: '/**',
+      },
       // Generic pattern for Supabase storage.
       // This allows images from any public bucket in your Supabase project.
       {

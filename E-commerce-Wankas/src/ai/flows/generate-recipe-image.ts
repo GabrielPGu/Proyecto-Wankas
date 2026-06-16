@@ -24,24 +24,10 @@ const generateRecipeImageFlow = ai.defineFlow(
     outputSchema: GenerateRecipeImageOutputSchema,
   },
   async (input) => {
-    const { media } = await ai.generate({
-      model: 'googleai/imagen-3.0-generate-001',
-      prompt: `Genera una imagen fotorrealista de alta calidad de un plato de "${input.recipeName}". La imagen debe ser apetitosa, bien iluminada y visualmente atractiva, adecuada para un blog de cocina.`,
-      config: {
-        responseModalities: ['IMAGE'],
-        safetySettings: [
-          { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
-          { category: 'HARM_CATEGORY_HATE_SPEECH',        threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
-          { category: 'HARM_CATEGORY_HARASSMENT',         threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
-          { category: 'HARM_CATEGORY_DANGEROUS_CONTENT',  threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
-        ],
-      },
-    });
+    // Usamos Pollinations.ai, que es un generador de imágenes con IA gratuito y sin keys
+    const prompt = `A highly appetizing, photorealistic, and well-lit food photography of the final plated dish: ${input.recipeName}. The image should strictly show the ready-to-eat prepared food, professional food blog style.`;
+    const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=800&height=600&nologo=true`;
 
-    if (!media || !media.url) {
-      throw new Error('No se pudo generar la imagen de la receta o la URL de la imagen está vacía.');
-    }
-
-    return { imageDataUri: media.url };
+    return { imageDataUri: imageUrl };
   }
 );

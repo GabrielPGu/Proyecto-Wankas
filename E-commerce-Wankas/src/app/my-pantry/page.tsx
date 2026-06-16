@@ -16,7 +16,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Loader } from '@/components/ui/loader';
 import { useToast } from '@/hooks/use-toast';
-import { Tag, ListChecks, UtensilsCrossed, PlusCircle, CheckSquare, ShoppingCart, UploadCloud, RefreshCw, ChefHat, BookOpen, Users, Soup, Apple } from 'lucide-react';
+import { Tag, ListChecks, UtensilsCrossed, PlusCircle, CheckSquare, ShoppingCart, UploadCloud, RefreshCw, ChefHat, BookOpen, Users, Soup, Apple, Loader2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
 import { useAuth } from '@/context/auth-context';
@@ -386,8 +386,17 @@ export default function MyPantryPage() {
               </div>
               <div className="flex flex-col sm:flex-row gap-2">
                 <Button onClick={handleGetRecipeSuggestions} disabled={isProcessing || initialIdentifiedItems.length === 0} className="flex-1">
-                  {isProcessing ? <Loader size={20} /> : <ListChecks className="mr-2 h-5 w-5" />}
-                  {translations.buttons.getRecipeSuggestions}
+                  {isProcessing ? (
+                    <>
+                      <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                      {translations.common.loading}...
+                    </>
+                  ) : (
+                    <>
+                      <ListChecks className="mr-2 h-5 w-5" />
+                      {translations.buttons.getRecipeSuggestions}
+                    </>
+                  )}
                 </Button>
                 <Button variant="outline" onClick={resetPantryProcess}>
                   <RefreshCw className="mr-2 h-4 w-4" /> {translations.buttons.startOver}
