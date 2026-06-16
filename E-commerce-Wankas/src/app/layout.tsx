@@ -7,6 +7,7 @@ import { LocaleProvider } from '@/context/locale-context';
 import { Header } from '@/components/layout/header';
 import { Footer } from '@/components/layout/footer';
 import { es as esTranslations } from '@/locales/es';
+import NextTopLoader from 'nextjs-toploader';
 
 export const metadata: Metadata = {
   title: esTranslations.SITE_TITLE,
@@ -30,6 +31,7 @@ export default function RootLayout({
         <AuthProvider>
           <LocaleProvider>
             <CartProvider>
+              <NextTopLoader color="hsl(var(--primary))" showSpinner={false} />
               <Header />
               <main className="flex-grow container py-8">
                 {children}

@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { AuthProvider } from '@/hooks/use-auth';
 import { Toaster } from "@/components/ui/toaster"
 import './globals.css';
+import NextTopLoader from 'nextjs-toploader';
 
 export const metadata: Metadata = {
   title: "Wanka's Panel",
@@ -22,6 +23,7 @@ export default function RootLayout({
       </head>
       <body className="font-body antialiased">
         <AuthProvider>
+          <NextTopLoader color="hsl(var(--primary))" showSpinner={false} />
           {children}
           <Toaster />
         </AuthProvider>

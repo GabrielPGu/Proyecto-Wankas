@@ -6,6 +6,8 @@ import { useAuth } from "@/hooks/use-auth"
 import type { Order, OrderStatus, Location } from "@/types"
 import { orderStatusToSpanish, spanishToOrderStatus } from "@/types"
 import { createClient } from "@/lib/supabase/client"
+import { adminCache } from "@/lib/adminCache"
+import { Loader } from "@/components/ui/loader"
 import { format, parseISO } from "date-fns"
 import { es } from 'date-fns/locale'
 
@@ -68,34 +70,49 @@ export default function PedidosPage() {
 
   const statuses: string[] = ["Todos", "Pendiente", "Completado", "Cancelado"]
 
-  const fetchData = React.useCallback(async () => {
-    setLoading(true)
-    let query = supabase.from('orders').select('*, profiles(name), locations(name_es), order_items(product_id, quantity)')
+  const fetchData = React.useCallback(async (forceRefresh = false) => {
+    const cacheKey = `pedidos:${user?.role}:${user?.location_id ?? 'all'}`
 
-    if (user?.role === 'worker' && user.location_id) {
-      query = query.eq('location_id', user.location_id)
-    }
-
-    const { data, error } = await query.order('created_at', { ascending: false })
-
-    if (error) {
-      toast({ variant: "destructive", title: "Error", description: "No se pudieron cargar los pedidos."})
-      console.error("Error fetching orders:", error)
-    } else {
-      setOrders(data as any)
-    }
-
-    if (user?.role === 'admin') {
-      const { data: locationsData, error: locationsError } = await supabase.from('locations').select('*').order('name_es', { ascending: true });
-      if (locationsError) {
-          toast({ variant: "destructive", title: "Error", description: "No se pudieron cargar las ubicaciones para el filtro."});
-      } else {
-          setLocations(locationsData || []);
+    if (!forceRefresh) {
+      const cachedOrders = adminCache.get<Order[]>(cacheKey)
+      const cachedLocations = adminCache.get<Location[]>('ubicaciones')
+      if (cachedOrders) {
+        setOrders(cachedOrders)
+        if (cachedLocations) setLocations(cachedLocations)
+        setLoading(false)
+        return
       }
     }
 
-    setLoading(false)
-  }, [supabase, user?.role, user?.location_id, toast])
+    setLoading(true)
+    try {
+      const params = new URLSearchParams({ role: user?.role ?? '' })
+      if (user?.role === 'worker' && user.location_id) {
+        params.set('location_id', user.location_id)
+      }
+      const res = await fetch(`/api/admin/pedidos?${params}`)
+      const ordersData = await res.json()
+      adminCache.set(cacheKey, ordersData)
+      setOrders(ordersData)
+
+      if (user?.role === 'admin') {
+        const cachedLocs = adminCache.get<Location[]>('ubicaciones')
+        if (cachedLocs) {
+          setLocations(cachedLocs)
+        } else {
+          const locRes = await fetch('/api/admin/ubicaciones')
+          const locsData = await locRes.json()
+          adminCache.set('ubicaciones', locsData)
+          setLocations(locsData)
+        }
+      }
+    } catch (e) {
+      toast({ variant: "destructive", title: "Error", description: "No se pudieron cargar los pedidos."})
+      console.error("Error fetching orders:", e)
+    } finally {
+      setLoading(false)
+    }
+  }, [user?.role, user?.location_id, toast])
 
   React.useEffect(() => {
     fetchData()
@@ -210,7 +227,11 @@ export default function PedidosPage() {
   }
 
   if (loading) {
-    return <p>Cargando pedidos...</p>
+    return (
+      <div className="flex items-center justify-center min-h-[calc(100vh-15rem)]">
+        <Loader text="Cargando pedidos..." size={48} />
+      </div>
+    )
   }
   
   return (

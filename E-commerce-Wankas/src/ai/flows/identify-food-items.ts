@@ -47,6 +47,7 @@ Analiza las siguientes imágenes:`;
     ];
 
     const { output } = await ai.generate({
+      model: 'googleai/gemini-3.5-flash',
       prompt: promptParts,
       output: { schema: IdentifyFoodItemsOutputSchema }, 
       config: {

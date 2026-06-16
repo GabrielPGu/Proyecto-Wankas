@@ -6,6 +6,8 @@ import { useAuth } from "@/hooks/use-auth"
 import type { UserProfile } from "@/types"
 import { createUserAction, updateUserAction, deleteUserAction } from "@/actions/usuarios"
 import { createClient } from "@/lib/supabase/client"
+import { adminCache } from "@/lib/adminCache"
+import { Loader } from "@/components/ui/loader"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import {
@@ -68,17 +70,28 @@ export default function UsuariosPage() {
     role: "worker"
   })
 
-  const fetchUsers = React.useCallback(async () => {
-    setLoading(true)
-    const { data, error } = await supabase.from('profiles').select('*').order('name', { ascending: true })
-    if (error) {
-      toast({ variant: "destructive", title: "Error", description: "No se pudieron cargar los usuarios."})
-      console.error(error)
-    } else {
-      setProfiles(data as any)
+  const fetchUsers = React.useCallback(async (forceRefresh = false) => {
+    if (!forceRefresh) {
+      const cached = adminCache.get<UserProfile[]>('usuarios')
+      if (cached) {
+        setProfiles(cached)
+        setLoading(false)
+        return
+      }
     }
-    setLoading(false)
-  }, [supabase, toast])
+    setLoading(true)
+    try {
+      const res = await fetch('/api/admin/usuarios')
+      const data = await res.json()
+      adminCache.set('usuarios', data)
+      setProfiles(data)
+    } catch (e) {
+      toast({ variant: "destructive", title: "Error", description: "No se pudieron cargar los usuarios."})
+      console.error(e)
+    } finally {
+      setLoading(false)
+    }
+  }, [toast])
 
   React.useEffect(() => {
     fetchUsers()
@@ -180,7 +193,11 @@ export default function UsuariosPage() {
   }
   
   if (loading) {
-    return <p>Cargando usuarios...</p>
+    return (
+      <div className="flex items-center justify-center min-h-[calc(100vh-15rem)]">
+        <Loader text="Cargando usuarios..." size={48} />
+      </div>
+    )
   }
 
   return (

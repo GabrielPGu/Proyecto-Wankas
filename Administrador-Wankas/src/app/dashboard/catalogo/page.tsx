@@ -5,6 +5,8 @@ import * as React from "react"
 import { useAuth } from "@/hooks/use-auth"
 import type { Product, Category } from "@/types"
 import { createClient } from "@/lib/supabase/client"
+import { adminCache } from "@/lib/adminCache"
+import { Loader } from "@/components/ui/loader"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -72,32 +74,31 @@ export default function CatalogoPage() {
   
   const supabase = createClient()
 
-  const fetchProductsAndCategories = React.useCallback(async () => {
+  const fetchProductsAndCategories = React.useCallback(async (forceRefresh = false) => {
+    // Verificar caché en memoria primero (instantáneo, 0ms)
+    if (!forceRefresh) {
+      const cached = adminCache.get<{ products: Product[]; categories: Category[] }>('catalogo')
+      if (cached) {
+        setProducts(cached.products)
+        setCategories(cached.categories)
+        setLoading(false)
+        return
+      }
+    }
     setLoading(true)
-    const { data: productsData, error: productsError } = await supabase
-      .from("products")
-      .select(`*, categories (*)`)
-      .order('name_es', { ascending: true })
-    
-    if (productsError) {
+    try {
+      const res = await fetch('/api/admin/catalogo')
+      const data = await res.json()
+      adminCache.set('catalogo', data)
+      setProducts(data.products ?? [])
+      setCategories(data.categories ?? [])
+    } catch (e) {
       toast({ variant: "destructive", title: "Error", description: "No se pudieron cargar los productos."})
-      console.error(productsError)
-    } else {
-      setProducts(productsData as any)
+      console.error(e)
+    } finally {
+      setLoading(false)
     }
-
-    const { data: categoriesData, error: categoriesError } = await supabase
-      .from("categories")
-      .select('*')
-    
-    if (categoriesError) {
-       toast({ variant: "destructive", title: "Error", description: "No se pudieron cargar las categorías."})
-      console.error(categoriesError)
-    } else {
-      setCategories(categoriesData)
-    }
-    setLoading(false)
-  }, [supabase, toast])
+  }, [toast])
 
   React.useEffect(() => {
     fetchProductsAndCategories()
@@ -157,7 +158,8 @@ export default function CatalogoPage() {
     } else {
       toast({ title: "Éxito", description: "Producto añadido correctamente."})
       setIsAddDialogOpen(false)
-      fetchProductsAndCategories()
+      adminCache.invalidate('catalogo')
+      fetchProductsAndCategories(true)
     }
   }
 
@@ -181,7 +183,8 @@ export default function CatalogoPage() {
       toast({ title: "Éxito", description: "Producto actualizado correctamente."})
       setIsEditDialogOpen(false)
       setProductToEdit(null)
-      fetchProductsAndCategories()
+      adminCache.invalidate('catalogo')
+      fetchProductsAndCategories(true)
     }
   }
 
@@ -195,7 +198,8 @@ export default function CatalogoPage() {
       console.error(error)
     } else {
       toast({ title: "Éxito", description: "Producto eliminado correctamente."})
-      fetchProductsAndCategories()
+      adminCache.invalidate('catalogo')
+      fetchProductsAndCategories(true)
     }
     setIsDeleteDialogOpen(false)
     setProductToDeleteId(null)
@@ -207,7 +211,11 @@ export default function CatalogoPage() {
   }
 
   if (loading) {
-    return <p>Cargando productos...</p>
+    return (
+      <div className="flex items-center justify-center min-h-[calc(100vh-15rem)]">
+        <Loader text="Cargando catálogo..." size={48} />
+      </div>
+    )
   }
 
   return (

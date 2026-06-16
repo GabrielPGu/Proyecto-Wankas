@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { PackageSearch } from 'lucide-react';
 import { useLocale } from '@/context/locale-context';
 import { Loader } from '@/components/ui/loader';
-import { getProducts } from '@/services/productService';
+import { clientCache } from '@/lib/clientCache';
 
 export default function ProductsPage() {
   const { translations } = useLocale();
@@ -20,11 +20,21 @@ export default function ProductsPage() {
 
   useEffect(() => {
     const fetchProducts = async () => {
+      const cached = clientCache.get<Product[]>('products');
+      if (cached) {
+        setAllProducts(cached);
+        setIsLoading(false);
+        return;
+      }
+
       setIsLoading(true);
       try {
-        const productsData = await getProducts();
-        const uniqueProductsByName = Array.from(new Map(productsData.map(p => [p.name, p])).values());
+        const response = await fetch('/api/products');
+        if (!response.ok) throw new Error('Network response was not ok');
+        const productsData = await response.json();
+        const uniqueProductsByName = Array.from(new Map(productsData.map((p: Product) => [p.name, p])).values()) as Product[];
         setAllProducts(uniqueProductsByName);
+        clientCache.set('products', uniqueProductsByName);
       } catch (error) {
         console.error("Failed to fetch products:", error);
       } finally {

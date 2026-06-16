@@ -4,14 +4,13 @@
 import * as React from "react"
 import { useAuth } from "@/hooks/use-auth"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { createClient } from "@/lib/supabase/client"
+import { Loader } from "@/components/ui/loader"
 import type { Order, OrderStatus } from "@/types"
 import { orderStatusToSpanish } from "@/types"
 import { ShoppingCart, Package, MapPin, DollarSign } from "lucide-react"
 
 export default function DashboardPage() {
   const { user } = useAuth()
-  const supabase = createClient()
   const [stats, setStats] = React.useState({
     totalOrders: 0,
     totalRevenue: 0,
@@ -22,37 +21,43 @@ export default function DashboardPage() {
   const [loading, setLoading] = React.useState(true)
 
   React.useEffect(() => {
+    // No hacer nada hasta que el usuario esté autenticado
+    if (!user) return
+
     const fetchDashboardData = async () => {
       setLoading(true)
-
-      const { count: totalOrders } = await supabase.from('orders').select('*', { count: 'exact', head: true })
-      const { data: revenueData } = await supabase.from('orders').select('total_price').eq('status', 'completed')
-      const totalRevenue = revenueData?.reduce((sum, order) => sum + order.total_price, 0) || 0
-      const { count: activeProducts } = await supabase.from('products').select('*', { count: 'exact', head: true })
-      const { count: activeLocations } = await supabase.from('locations').select('*', { count: 'exact', head: true })
-      
-      setStats({
-        totalOrders: totalOrders ?? 0,
-        totalRevenue,
-        activeProducts: activeProducts ?? 0,
-        activeLocations: activeLocations ?? 0,
-      })
-
-      const { data: ordersData, error: ordersError } = await supabase
-        .from('orders')
-        .select('*, profiles(name), locations(name_es)')
-        .order('created_at', { ascending: false })
-        .limit(5)
-
-      if (ordersData) {
-        setRecentOrders(ordersData as any)
+      try {
+        const res = await fetch('/api/admin/dashboard')
+        const data = await res.json()
+        setStats(data.stats)
+        setRecentOrders(data.recentOrders)
+      } catch (e) {
+        console.error('Error fetching dashboard data:', e)
+      } finally {
+        setLoading(false)
       }
-
-      setLoading(false)
     }
 
     fetchDashboardData()
-  }, [supabase])
+
+    // Prefetch silencioso: alimentar Redis con todos los datos antes de que el
+    // admin navegue a esas pestañas, para que carguen altoque.
+    const prefetchAll = () => {
+      fetch('/api/admin/catalogo').catch(() => {})
+      fetch('/api/admin/usuarios').catch(() => {})
+      fetch('/api/admin/ubicaciones').catch(() => {})
+      const params = new URLSearchParams({ role: user.role })
+      if (user.role === 'worker' && user.location_id) {
+        params.set('location_id', user.location_id)
+      }
+      fetch(`/api/admin/pedidos?${params}`).catch(() => {})
+    }
+
+    // Ejecutar prefetch 1 segundo después de que el dashboard carga para
+    // no competir con la propia petición del panel
+    const timer = setTimeout(prefetchAll, 1000)
+    return () => clearTimeout(timer)
+  }, [user])
 
   const statCards = [
     {
@@ -82,7 +87,11 @@ export default function DashboardPage() {
   ]
 
   if (loading) {
-    return <p>Cargando panel...</p>
+    return (
+      <div className="flex items-center justify-center min-h-[calc(100vh-15rem)]">
+        <Loader text="Cargando panel..." size={48} />
+      </div>
+    )
   }
 
   return (
@@ -138,3 +147,4 @@ export default function DashboardPage() {
     </div>
   )
 }
+
