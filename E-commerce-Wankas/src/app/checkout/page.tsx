@@ -10,7 +10,8 @@ import { StoreSelector } from '@/components/store-selector';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
 import { Loader } from '@/components/ui/loader';
-import { ClipboardCheck, CheckCircle, Info } from 'lucide-react';
+import { ClipboardCheck, CheckCircle, Info, FileText } from 'lucide-react';
+import { Textarea } from '@/components/ui/textarea';
 import Link from 'next/link';
 import { useLocale } from '@/context/locale-context';
 import { timeSlots } from '@/data/stores'; 
@@ -27,6 +28,7 @@ export default function CheckoutPage() {
   const [selectedStoreId, setSelectedStoreId] = useState<string | undefined>(undefined);
   const [selectedTimeSlotId, setSelectedTimeSlotId] = useState<string | undefined>(undefined);
   const [pickupDate, setPickupDate] = useState<Date | undefined>(undefined);
+  const [notes, setNotes] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   
   const total = getCartTotal();
@@ -114,11 +116,12 @@ export default function CheckoutPage() {
     setIsProcessing(true);
 
     try {
-      const orderData: Omit<Order, 'id' | 'created_at' | 'updated_at' | 'order_date' | 'status' | 'notes'> = {
+      const orderData: Omit<Order, 'id' | 'created_at' | 'updated_at' | 'order_date' | 'status'> = {
           user_id: user.id,
           location_id: selectedStoreId,
           pickup_date: finalPickupDateISO,
           total_price: total,
+          notes: notes.trim() || null,
       };
 
       await placeOrderWithStockUpdate(orderData, cartItems);
@@ -165,6 +168,25 @@ export default function CheckoutPage() {
             selectedTimeSlotId={selectedTimeSlotId}
             onSelectionChange={handleSelectionChange}
           />
+
+          <Card className="shadow-md">
+            <CardHeader>
+              <CardTitle className="font-headline text-xl flex items-center">
+                <FileText className="mr-2 h-6 w-6 text-primary" />
+                {translations.checkoutPage.notesLabel}
+              </CardTitle>
+              <CardDescription>{translations.checkoutPage.notesPlaceholder}</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Textarea
+                placeholder={translations.checkoutPage.notesPlaceholder}
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                rows={3}
+                className="resize-none"
+              />
+            </CardContent>
+          </Card>
           
           <Card className="shadow-md">
             <CardHeader>

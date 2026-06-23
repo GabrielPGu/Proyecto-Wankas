@@ -134,7 +134,9 @@ export const en = {
     orderItemsErrorFKeyOrder: "Failed to save order items. The parent order ID is invalid. (Foreign Key Violation: `order_items_order_id_fkey`)",
     invalidTimeSlot: "The selected time slot is invalid or could not be processed.",
     orderErrorRLSStrict: "Could not save order. This may be due to database security policies or permission issues. Please check logs or contact support.",
-    orderItemsErrorRLSStrict: "Could not save order items. This may be due to database security policies or permission issues for the associated order. Please check logs or contact support."
+    orderItemsErrorRLSStrict: "Could not save order items. This may be due to database security policies or permission issues for the associated order. Please check logs or contact support.",
+    notesLabel: "Order Notes / Special Instructions",
+    notesPlaceholder: "Example: Authorized person to pick up, packaging preferences, substitution details..."
   },
   loginForm: {
     title: "Login",

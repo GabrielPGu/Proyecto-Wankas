@@ -1,0 +1,6 @@
+# Cache y archivos de sesión local (contienen credenciales/tokens sensibles)
+.session-store.json
+
+# Scripts de inicialización local de base de datos (con credenciales en texto plano)
+crear_usuarios_prueba.sql
+
