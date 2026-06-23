@@ -16,7 +16,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Loader } from '@/components/ui/loader';
 import { useToast } from '@/hooks/use-toast';
-import { Tag, ListChecks, UtensilsCrossed, PlusCircle, CheckSquare, ShoppingCart, UploadCloud, RefreshCw, ChefHat, BookOpen, Users, Soup, Apple, Loader2 } from 'lucide-react';
+import { Tag, ListChecks, UtensilsCrossed, PlusCircle, CheckSquare, ShoppingCart, UploadCloud, RefreshCw, ChefHat, BookOpen, Users, Soup, Apple, Loader2, X, Plus } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
 import { useAuth } from '@/context/auth-context';
@@ -45,6 +45,10 @@ export default function MyPantryPage() {
   const [isGeneratingRecipeImage, setIsGeneratingRecipeImage] = useState(false);
   const [isFetchingMissingIngredients, setIsFetchingMissingIngredients] = useState(false);
   const [allProducts, setAllProducts] = useState<Product[]>([]);
+
+  const [showManualEntry, setShowManualEntry] = useState(false);
+  const [manualIngredients, setManualIngredients] = useState<string>('');
+  const [additionalIngredient, setAdditionalIngredient] = useState<string>('');
 
   const [uploadedImageUris, setUploadedImageUris] = useState<string[]>([]);
   const [initialIdentifiedItems, setInitialIdentifiedItems] = useState<IdentifiedItem[]>([]);
@@ -109,10 +113,12 @@ export default function MyPantryPage() {
         }));
         setInitialIdentifiedItems(identified);
         setCurrentStep(PantryStep.Identified);
+        setShowManualEntry(false);
         toast({ title: translations.myPantryPage.identifiedTitle, description: translations.myPantryPage.itemsFoundMsg.replace('{count}', result.items.length.toString()) });
       } else {
         toast({ title: translations.myPantryPage.noItemsIdentifiedTitle, description: translations.myPantryPage.noItemsIdentifiedDesc, variant: 'destructive' });
         setCurrentStep(PantryStep.Upload);
+        setShowManualEntry(true);
       }
     } catch (error) {
       console.error('Error identificando alimentos:', error);
@@ -124,9 +130,44 @@ export default function MyPantryPage() {
       }
       toast({ title: translations.common.error, description: errorMsg, variant: 'destructive' });
       setCurrentStep(PantryStep.Upload);
+      setShowManualEntry(true);
     } finally {
       setIsProcessing(false);
     }
+  };
+
+  const handleManualSubmit = () => {
+    if (!manualIngredients.trim()) return;
+    setIsProcessing(true);
+    const items = manualIngredients.split(',').map(i => i.trim()).filter(i => i);
+    const identified = items.map(itemName => ({
+      name: capitalizeFirstLetter(itemName), 
+      aiOriginalName: itemName, 
+      dbProduct: findProductMatch(itemName), 
+      quantityToAddToCart: 1,
+    }));
+    setInitialIdentifiedItems(identified);
+    setCurrentStep(PantryStep.Identified);
+    setShowManualEntry(false);
+    setManualIngredients('');
+    setIsProcessing(false);
+  };
+
+  const handleAddAdditionalIngredient = () => {
+    if (!additionalIngredient.trim()) return;
+    const items = additionalIngredient.split(',').map(i => i.trim()).filter(i => i);
+    const newIdentified = items.map(itemName => ({
+      name: capitalizeFirstLetter(itemName),
+      aiOriginalName: itemName,
+      dbProduct: findProductMatch(itemName),
+      quantityToAddToCart: 1,
+    }));
+    setInitialIdentifiedItems(prev => [...prev, ...newIdentified]);
+    setAdditionalIngredient('');
+  };
+
+  const handleRemoveIdentifiedItem = (indexToRemove: number) => {
+    setInitialIdentifiedItems(prev => prev.filter((_, index) => index !== indexToRemove));
   };
 
   const handleGetRecipeSuggestions = async () => {
@@ -295,6 +336,8 @@ export default function MyPantryPage() {
     setIsGeneratingRecipeImage(false);
     setIsFetchingMissingIngredients(false);
     setDesiredServings(1);
+    setShowManualEntry(false);
+    setManualIngredients('');
   };
 
   const scaleIngredient = (ingredient: string, originalServings: number, newServings: number): string => {
@@ -354,6 +397,24 @@ export default function MyPantryPage() {
             </CardHeader>
             <CardContent>
               <ImageUploader onImageUpload={handleImageUploaded} isProcessing={isProcessing} />
+              {showManualEntry && (
+                <div className="mt-6 p-4 border rounded-md bg-secondary/10 animate-fadeIn">
+                  <h4 className="font-semibold mb-2 flex items-center">
+                    <ListChecks className="mr-2 h-5 w-5 text-primary" /> Ingreso manual de ingredientes
+                  </h4>
+                  <p className="text-sm text-muted-foreground mb-4">Ingresa los ingredientes separados por comas si la IA no pudo identificarlos o hubo un error.</p>
+                  <Input 
+                    placeholder="Ej: Tomate, Cebolla, Ajo, Pollo" 
+                    value={manualIngredients} 
+                    onChange={(e) => setManualIngredients(e.target.value)}
+                    disabled={isProcessing}
+                    className="mb-4"
+                  />
+                  <Button onClick={handleManualSubmit} disabled={isProcessing || !manualIngredients.trim()} className="w-full sm:w-auto">
+                    Continuar con estos ingredientes
+                  </Button>
+                </div>
+              )}
             </CardContent>
           </Card>
         );
@@ -377,12 +438,36 @@ export default function MyPantryPage() {
                     ))}
                 </div>
               )}
-              <div className="flex flex-wrap gap-2 mb-6">
+              <div className="flex flex-wrap gap-2 mb-4">
                 {initialIdentifiedItems.map((item, index) => (
-                  <Badge key={index} variant="secondary" className="text-md p-2 bg-accent/20 text-primary">
+                  <Badge key={index} variant="secondary" className="text-md p-2 pl-3 bg-accent/20 text-primary flex items-center gap-1">
                     {item.name}
+                    <button 
+                      onClick={() => handleRemoveIdentifiedItem(index)}
+                      className="text-primary hover:text-destructive hover:bg-destructive/10 rounded-full p-0.5 transition-colors"
+                      title="Eliminar ingrediente"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
                   </Badge>
                 ))}
+              </div>
+              <div className="flex items-center gap-2 mb-6 bg-secondary/10 p-3 rounded-md border">
+                <Input 
+                  placeholder="Agregar ingrediente omitido (ej. Aceite, Sal)"
+                  value={additionalIngredient}
+                  onChange={(e) => setAdditionalIngredient(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleAddAdditionalIngredient()}
+                  className="flex-1 bg-background"
+                />
+                <Button 
+                  onClick={handleAddAdditionalIngredient} 
+                  variant="secondary" 
+                  disabled={!additionalIngredient.trim()}
+                  className="shrink-0"
+                >
+                  <Plus className="mr-2 h-4 w-4" /> Agregar
+                </Button>
               </div>
               <div className="flex flex-col sm:flex-row gap-2">
                 <Button onClick={handleGetRecipeSuggestions} disabled={isProcessing || initialIdentifiedItems.length === 0} className="flex-1">
