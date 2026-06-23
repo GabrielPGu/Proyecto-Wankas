@@ -14,7 +14,7 @@ export interface EnrichedOrder extends Order {
 }
 
 export async function placeOrderWithStockUpdate(
-  orderData: Omit<Order, 'id' | 'created_at' | 'updated_at' | 'order_date' | 'status' | 'notes'>,
+  orderData: Omit<Order, 'id' | 'created_at' | 'updated_at' | 'order_date' | 'status'>,
   items: CartItem[]
 ): Promise<Order> {
   if (!supabase) {

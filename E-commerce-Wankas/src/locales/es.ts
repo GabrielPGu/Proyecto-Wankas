@@ -136,7 +136,9 @@ export const es: Translations = {
     orderItemsErrorFKeyOrder: "Error al guardar los artículos de la orden. El ID de la orden padre es inválido. (Violación de Clave Externa: `order_items_order_id_fkey`)",
     invalidTimeSlot: "El horario de recogida seleccionado es inválido o no pudo ser procesado.",
     orderErrorRLSStrict: "No se pudo guardar la orden. Esto puede deberse a políticas de seguridad de la base de datos o problemas de permisos. Por favor, verifica los registros o contacta a soporte.",
-    orderItemsErrorRLSStrict: "No se pudieron guardar los artículos de la orden. Esto puede deberse a políticas de seguridad de la base de datos o problemas de permisos para la orden asociada. Por favor, verifica los registros o contacta a soporte."
+    orderItemsErrorRLSStrict: "No se pudieron guardar los artículos de la orden. Esto puede deberse a políticas de seguridad de la base de datos o problemas de permisos para la orden asociada. Por favor, verifica los registros o contacta a soporte.",
+    notesLabel: "Notas o Instrucciones Especiales",
+    notesPlaceholder: "Ejemplo: Persona autorizada para recoger, indicaciones sobre empaque, etc."
   },
   loginForm: {
     title: "Ingresar",

@@ -349,6 +349,11 @@ export default function PedidosPage() {
                       <TableCell>
                         <div className="font-medium">{order.profiles?.name || 'N/A'}</div>
                         <div className="hidden text-sm text-muted-foreground md:inline">{order.id}</div>
+                        {order.notes && (
+                          <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded p-1.5 mt-1 max-w-xs break-words font-normal">
+                            <strong>Nota:</strong> {order.notes}
+                          </div>
+                        )}
                       </TableCell>
                       {user?.role === 'admin' && <TableCell>{order.locations?.name_es || 'N/A'}</TableCell>}
                       <TableCell>
