@@ -3,6 +3,7 @@
 import type { User } from '@/types';
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { supabase } from '@/lib/supabaseClient'; 
+import { clientCache } from '@/lib/clientCache';
 
 interface AuthContextType {
   user: User | null;
@@ -127,6 +128,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setUser(null);
         localStorage.removeItem('wankas-user');
       }
+      // Invalidar caché del cliente para evitar fuga de estado entre invitados y autenticados
+      clientCache.invalidateAll();
     });
 
     return () => {
