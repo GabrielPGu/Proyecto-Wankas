@@ -42,6 +42,7 @@ export interface TimeSlot {
   id: string;
   time: string;
   available: boolean;
+  isDisabled?: boolean;
 }
 
 export interface User {

@@ -19,6 +19,7 @@ class SessionStore {
         maxRetriesPerRequest: 1,
         connectTimeout: 5000, // 5 seconds timeout to allow Upstash to connect
         retryStrategy: () => null, // Do not auto-retry on connection failure
+        enableOfflineQueue: false, // Evitar colas de comandos offline para activar el fallback inmediato
       });
 
       this.redis.on('connect', () => {

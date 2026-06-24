@@ -110,7 +110,6 @@ export async function getUserOrders(userId: string): Promise<EnrichedOrder[]> {
     console.error("Supabase client not available.");
     return [];
   }
-  await new Promise(resolve => setTimeout(resolve, 300));
 
   const { data: ordersData, error: ordersError } = await supabase
     .from('orders')

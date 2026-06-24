@@ -213,7 +213,7 @@ export default function ReportsClient() {
         
         let finalY = 35;
         const tableOptions = {
-            theme: 'grid',
+            theme: 'grid' as const,
             headStyles: { fillColor: '#8B4513' }, 
             styles: { font: 'helvetica', cellPadding: 2, fontSize: 9 },
         };
