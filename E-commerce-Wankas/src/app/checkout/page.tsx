@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useCart } from '@/context/cart-context';
 import { useAuth } from '@/context/auth-context';
 import { useRouter } from 'next/navigation';
@@ -30,6 +30,7 @@ export default function CheckoutPage() {
   const [pickupDate, setPickupDate] = useState<Date | undefined>(undefined);
   const [notes, setNotes] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
+  const isSubmittingRef = useRef(false);
   
   const total = getCartTotal();
   const itemCount = getItemCount();
@@ -90,6 +91,8 @@ export default function CheckoutPage() {
 
 
   const handlePlaceOrder = async () => {
+    if (isSubmittingRef.current) return;
+
     if (!selectedStoreId || !selectedTimeSlotId || !pickupDate) {
       toast({
         title: translations.checkoutPage.missingInfoTitle,
@@ -113,6 +116,7 @@ export default function CheckoutPage() {
       return;
     }
 
+    isSubmittingRef.current = true;
     setIsProcessing(true);
 
     try {
@@ -124,7 +128,11 @@ export default function CheckoutPage() {
           notes: notes.trim() || null,
       };
 
-      await placeOrderWithStockUpdate(orderData, cartItems);
+      const newOrder = await placeOrderWithStockUpdate(orderData, cartItems);
+
+      if (!newOrder || !newOrder.id) {
+        throw new Error(translations.checkoutPage.orderErrorFallback || "No se pudo obtener el ID del pedido.");
+      }
 
       clearCart();
       toast({
@@ -140,6 +148,7 @@ export default function CheckoutPage() {
 
     } catch (error: any) {
         console.error('Failed to place order:', error);
+        isSubmittingRef.current = false;
         toast({
             title: translations.checkoutPage.orderErrorTitle,
             description: error.message || translations.checkoutPage.orderErrorFallback,
