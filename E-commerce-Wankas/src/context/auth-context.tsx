@@ -4,7 +4,6 @@ import type { User } from '@/types';
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { supabase } from '@/lib/supabaseClient'; 
 import { clientCache } from '@/lib/clientCache';
-import { useRouter, usePathname } from 'next/navigation';
 
 interface AuthContextType {
   user: User | null;
@@ -18,8 +17,6 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const router = useRouter();
-  const pathname = usePathname();
 
   const fetchUserProfile = async (authUserId: string, authUserEmail?: string | null, authUserName?: string | null): Promise<Partial<User>> => {
     if (!supabase) {
@@ -76,61 +73,37 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const initializeAuth = async () => {
       setIsLoading(true);
       try {
-        // Get local session
+        // 1. Try native Supabase localStorage session first
         const { data: { session } } = await supabase.auth.getSession();
 
-        // 1. Fetch the shared SSO session (cookie wankas_sid / Redis)
-        let ssoSession = null;
+        if (session?.user) {
+          const completeUser = await buildUser(session.user);
+          setUser(completeUser);
+          localStorage.setItem('wankas-user', JSON.stringify(completeUser));
+          setIsLoading(false);
+          return;
+        }
+
+        // 2. No local session — try shared Redis/file SSO session from Admin
         try {
           const res = await fetch('/api/auth/session');
           const data = await res.json();
-          ssoSession = data.session;
+          if (data.session?.access_token) {
+            const { data: setData, error: setError } = await supabase.auth.setSession({
+              access_token: data.session.access_token,
+              refresh_token: data.session.refresh_token,
+            });
+            if (!setError && setData.user) {
+              const completeUser = await buildUser(setData.user);
+              setUser(completeUser);
+              localStorage.setItem('wankas-user', JSON.stringify(completeUser));
+              setIsLoading(false);
+              return;
+            }
+          }
         } catch (ssoError) {
+          // SSO fetch failed — non-critical, continue as logged out
           console.warn('SSO session fetch failed:', ssoError);
-        }
-
-        if (session?.user) {
-          // If we have a local session but no active SSO session, we must log out
-          if (!ssoSession || !ssoSession.access_token) {
-            setUser(null);
-            localStorage.removeItem('wankas-user');
-            await supabase.auth.signOut();
-          } else if (ssoSession.user?.id !== session.user.id) {
-            // If SSO user is different, switch session
-            const { data: setData, error: setError } = await supabase.auth.setSession({
-              access_token: ssoSession.access_token,
-              refresh_token: ssoSession.refresh_token,
-            });
-            if (!setError && setData.user) {
-              const completeUser = await buildUser(setData.user);
-              setUser(completeUser);
-              localStorage.setItem('wankas-user', JSON.stringify(completeUser));
-              setIsLoading(false);
-              return;
-            }
-          } else {
-            // Local and SSO match, just load/verify profile
-            const completeUser = await buildUser(session.user);
-            setUser(completeUser);
-            localStorage.setItem('wankas-user', JSON.stringify(completeUser));
-            setIsLoading(false);
-            return;
-          }
-        } else {
-          // 2. No local session — try shared Redis/file SSO session from Admin
-          if (ssoSession?.access_token) {
-            const { data: setData, error: setError } = await supabase.auth.setSession({
-              access_token: ssoSession.access_token,
-              refresh_token: ssoSession.refresh_token,
-            });
-            if (!setError && setData.user) {
-              const completeUser = await buildUser(setData.user);
-              setUser(completeUser);
-              localStorage.setItem('wankas-user', JSON.stringify(completeUser));
-              setIsLoading(false);
-              return;
-            }
-          }
         }
 
         // 3. No session found anywhere
@@ -146,31 +119,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     initializeAuth();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      setTimeout(async () => {
-        if (session?.user) {
-          const completeUser = await buildUser(session.user);
-          setUser(completeUser);
-          localStorage.setItem('wankas-user', JSON.stringify(completeUser));
-
-          // Sincronizar cookie de sesión al iniciar sesión, registrarse o refrescar token
-          await fetch('/api/auth/session', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ session }),
-          }).catch(console.error);
-        } else {
-          setUser(null);
-          localStorage.removeItem('wankas-user');
-
-          // Limpiar cookie de sesión si existe
-          if (typeof document !== 'undefined' && document.cookie.includes('wankas_sid')) {
-            await fetch('/api/auth/session', { method: 'DELETE' }).catch(console.error);
-          }
-        }
-        // Invalidar caché del cliente para evitar fuga de estado entre invitados y autenticados
-        clientCache.invalidateAll();
-      }, 0);
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (session?.user) {
+        const completeUser = await buildUser(session.user);
+        setUser(completeUser);
+        localStorage.setItem('wankas-user', JSON.stringify(completeUser));
+      } else {
+        setUser(null);
+        localStorage.removeItem('wankas-user');
+      }
+      // Invalidar caché del cliente para evitar fuga de estado entre invitados y autenticados
+      clientCache.invalidateAll();
     });
 
     return () => {
@@ -179,52 +138,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Sync session across tabs and apps on focus and page transitions
-  useEffect(() => {
-    const checkSsoSession = async () => {
-      // Only check if we are not initializing and have a local user state
-      if (isLoading || !user) return;
-      try {
-        const res = await fetch('/api/auth/session');
-        const data = await res.json();
-        if (!data.session?.access_token) {
-          console.log("SSO session checked: Active session cleared. Logging out client.");
-          setUser(null);
-          localStorage.removeItem('wankas-user');
-          if (supabase) {
-            await supabase.auth.signOut();
-          }
-          router.replace('/login');
-        } else if (data.session.user?.id !== user.id) {
-          console.log("SSO session checked: User changed. Re-initializing.");
-          window.location.reload();
-        }
-      } catch (error) {
-        console.warn('SSO session background check failed:', error);
-      }
-    };
-
-    checkSsoSession();
-
-    if (typeof window !== 'undefined') {
-      window.addEventListener('focus', checkSsoSession);
-      return () => {
-        window.removeEventListener('focus', checkSsoSession);
-      };
-    }
-  }, [pathname, user, isLoading, router]);
-
   const login = async (authData: User) => { 
     setUser(authData);
     localStorage.setItem('wankas-user', JSON.stringify(authData));
   };
 
   const logout = async () => {
-    try {
-      await fetch('/api/auth/session', { method: 'DELETE' });
-    } catch (e) {
-      console.error('Error clearing SSO session during logout:', e);
-    }
+    // Fire-and-forget: clear shared SSO session
+    fetch('/api/auth/session', { method: 'DELETE' }).catch(console.error);
     if (supabase) {
       await supabase.auth.signOut();
     }

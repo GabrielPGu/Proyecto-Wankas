@@ -17,8 +17,6 @@ import { useLocale } from '@/context/locale-context';
 import { timeSlots } from '@/data/stores'; 
 import { placeOrderWithStockUpdate } from '@/services/orderService';
 import type { Order } from '@/types';
-import { clientCache } from '@/lib/clientCache';
-import { getStoreLocations } from '@/services/locationService';
 
 export default function CheckoutPage() {
   const { cartItems, getCartTotal, clearCart, getItemCount } = useCart();
@@ -32,19 +30,6 @@ export default function CheckoutPage() {
   const [pickupDate, setPickupDate] = useState<Date | undefined>(undefined);
   const [notes, setNotes] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
-  const [stores, setStores] = useState<any[]>([]);
-
-  useEffect(() => {
-    const fetchStores = async () => {
-      try {
-        const locations = await getStoreLocations();
-        setStores(locations);
-      } catch (error) {
-        console.error("Error fetching stores:", error);
-      }
-    };
-    fetchStores();
-  }, []);
   
   const total = getCartTotal();
   const itemCount = getItemCount();
@@ -139,27 +124,7 @@ export default function CheckoutPage() {
           notes: notes.trim() || null,
       };
 
-      const newOrder = await placeOrderWithStockUpdate(orderData, cartItems);
-
-      // Pre-poblar la caché del cliente local para evitar lag de recarga/sincronización
-      const selectedStore = stores.find(s => s.id === selectedStoreId);
-      const enrichedOrder = {
-        ...newOrder,
-        location_name: selectedStore?.name || 'Sede seleccionada',
-        location_address: selectedStore?.address || 'Dirección de sede',
-        items: cartItems.map(item => ({
-          order_id: newOrder.id,
-          product_id: item.id,
-          quantity: item.quantity,
-          price_at_purchase: item.price,
-          productName: item.name,
-          productImageUrl: item.imageUrl || 'https://placehold.co/80x80.png'
-        }))
-      };
-
-      const cacheKey = `orders_${user.id}`;
-      const cachedOrders = clientCache.get<any[]>(cacheKey) || [];
-      clientCache.set(cacheKey, [enrichedOrder, ...cachedOrders]);
+      await placeOrderWithStockUpdate(orderData, cartItems);
 
       clearCart();
       toast({
